@@ -18,6 +18,7 @@ set(OPENCV_MODULE_CHILDREN
   line_descriptor
   optflow
   plot
+  protobuf_parser
   reg
   rgbd
   saliency
