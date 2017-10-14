@@ -13,13 +13,13 @@
 
 #include <string>
 
-#include "proto_message.hpp"
+#include "proto_terms.hpp"
 
 namespace cv { namespace pb {
 
 // Set of `.proto` files compiled together (using --include_imports flag of
 // proto compiler).
-struct FileDescriptorSet : public ProtobufMessage
+struct FileDescriptorSet : public ProtoMessage
 {
     explicit FileDescriptorSet(int maxMsgDepth = 3);
 };

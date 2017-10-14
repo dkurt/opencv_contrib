@@ -11,11 +11,18 @@
 #include <fstream>
 #include <utility>
 #include <algorithm>
-
+#include <iostream>
 #include "proto_descriptors.hpp"
 #include "proto_terms.hpp"
 
 namespace cv { namespace pb {
+
+ProtobufField::ProtobufField(int type) : _type(type) {}
+
+int ProtobufField::type() const
+{
+    return _type;
+}
 
 // Remove comments from prototxt file. Let comment is a sequence of characters
 // that starts from '#' (inclusive) and ends by '\n' (inclusive).
@@ -136,30 +143,29 @@ static Ptr<ProtobufField> buildEnum(const std::string& name,
         CV_Error(Error::StsParseError, "Enum " + name + " not found");
     const ProtobufNode& enumNode = typeNodes.find(name)->second;
 
-    Ptr<ProtoEnum> enumValue(new ProtoEnum(packed));
+    Ptr<ProtoEnum> enumValue(new ProtoEnum(packed, defaultValue));
     ProtobufNode values = enumNode["value"];
     for (int i = 0; i < values.size(); ++i)
     {
         enumValue->addValue(values[i]["name"], values[i]["number"]);
     }
-    enumValue->value = defaultValue;
     return enumValue;
 }
 
-static Ptr<ProtobufMessage> buildMessage(const std::string& name,
-                                         const std::map<std::string, ProtobufNode>& typeNodes,
-                                         std::map<std::string, Ptr<ProtobufMessage> >& builtMessages,
-                                         bool proto3)
+static Ptr<ProtoMessage> buildMessage(const std::string& name,
+                                      const std::map<std::string, ProtobufNode>& typeNodes,
+                                      std::map<std::string, Ptr<ProtoMessage> >& builtMessages,
+                                      bool proto3)
 {
     // Try to find already built message.
     if (builtMessages.find(name) != builtMessages.end())
-        return builtMessages[name]->clone().dynamicCast<ProtobufMessage>();
+        return builtMessages[name]->clone().dynamicCast<ProtoMessage>();
 
     if (typeNodes.find(name) == typeNodes.end())
         CV_Error(Error::StsParseError, "Message name " + name + " not found");
     const ProtobufNode& messageNode = typeNodes.find(name)->second;
 
-    Ptr<ProtobufMessage> message(new ProtobufMessage());
+    Ptr<ProtoMessage> message(new ProtoMessage());
     builtMessages[name] = message;
 
     // Get fields.
@@ -203,11 +209,11 @@ static Ptr<ProtobufMessage> buildMessage(const std::string& name,
         }
         else  // One of the simple types: int32, float, string, etc.
         {
-            field = createField(fieldType, defaultValue, packed);
+            field = Ptr<ProtobufField>(new ProtoValue(fieldType, packed, defaultValue));
         }
         if (field.empty())
             CV_Error(Error::StsParseError, "Type name " + name + " not found");
-        message->addField(field, fieldName, fieldTag, !defaultValue.empty());
+        message->addField(field, fieldName, fieldTag);
     }
     return message;
 };
@@ -236,7 +242,7 @@ void ProtobufParser::init(std::istream& s, const std::string& msg)
     protoDescriptor.read(s);
 
     std::map<std::string, ProtobufNode> typeNodes;
-    std::map<std::string, Ptr<ProtobufMessage> > builtMessages;
+    std::map<std::string, Ptr<ProtoMessage> > builtMessages;
     bool proto3 = false;
     for (int i = 0, n = protoDescriptor["file"].size(); i < n; ++i)
     {
@@ -249,6 +255,7 @@ void ProtobufParser::init(std::istream& s, const std::string& msg)
 
 void ProtobufParser::parse(const std::string& filePath, bool text)
 {
+    message->clear();
     if (text)
     {
         std::ifstream ifs(filePath.c_str());
@@ -267,29 +274,29 @@ void ProtobufParser::parse(const std::string& filePath, bool text)
         content = removeProtoComments(content);
         std::vector<std::string> tokens = tokenize(content);
         std::vector<std::string>::iterator tokenIt = tokens.begin();
-        message.dynamicCast<ProtobufMessage>()->read(tokenIt);
+        message.dynamicCast<ProtoMessage>()->read(tokenIt);
     }
     else
     {
         std::ifstream ifs(filePath.c_str(), std::ios::binary);
         CV_Assert(ifs.is_open());
-        message.dynamicCast<ProtobufMessage>()->read(ifs);
+        message.dynamicCast<ProtoMessage>()->read(ifs);
     }
 }
 
 ProtobufNode ProtobufParser::operator[](const std::string& name) const
 {
-    return message.dynamicCast<ProtobufMessage>()->operator[](name);
+    return message.dynamicCast<ProtoMessage>()->operator[](name);
 }
 
 bool ProtobufParser::has(const std::string& name) const
 {
-    return message.dynamicCast<ProtobufMessage>()->has(name);
+    return message.dynamicCast<ProtoMessage>()->has(name);
 }
 
 void ProtobufParser::remove(const std::string& name, int idx)
 {
-    message.dynamicCast<ProtobufMessage>()->remove(name, idx);
+    message.dynamicCast<ProtoMessage>()->remove(name, idx);
 }
 
 ProtobufNode ProtobufParser::root() const

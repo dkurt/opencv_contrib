@@ -12,7 +12,7 @@
 namespace cv { namespace pb {
 
     // Descriptor of field options.
-    struct FieldOptionsDescriptor : public ProtobufMessage
+    struct FieldOptionsDescriptor : public ProtoMessage
     {
         FieldOptionsDescriptor()
         {
@@ -26,7 +26,7 @@ namespace cv { namespace pb {
     };
 
     // Descriptor of field definitions.
-    struct FieldDescriptor : public ProtobufMessage
+    struct FieldDescriptor : public ProtoMessage
     {
         FieldDescriptor()
         {
@@ -46,7 +46,7 @@ namespace cv { namespace pb {
     };
 
     // Single enum value. Pair <name, number>.
-    struct EnumValueDescriptor : public ProtobufMessage
+    struct EnumValueDescriptor : public ProtoMessage
     {
         EnumValueDescriptor()
         {
@@ -61,7 +61,7 @@ namespace cv { namespace pb {
     };
 
     // Descriptor of enum definitions.
-    struct EnumDescriptor : public ProtobufMessage
+    struct EnumDescriptor : public ProtoMessage
     {
         EnumDescriptor()
         {
@@ -76,7 +76,7 @@ namespace cv { namespace pb {
     };
 
     // Descriptor of message definitions.
-    struct MessageDescriptor : public ProtobufMessage
+    struct MessageDescriptor : public ProtoMessage
     {
         explicit MessageDescriptor(int maxMsgDepth)
         {
@@ -98,7 +98,7 @@ namespace cv { namespace pb {
     };
 
     // Definition of single `.proto` file.
-    struct FileDescriptor : public ProtobufMessage
+    struct FileDescriptor : public ProtoMessage
     {
         explicit FileDescriptor(int maxMsgDepth)
         {

@@ -14,22 +14,28 @@ namespace cvtest
 
     static int toInt(const ProtobufNode& node)
     {
-        if (node.isInt32()) return (int32_t)node;
-        else if (node.isUInt32()) return (int)(uint32_t)node;
-        else if (node.isInt64()) return (int)(int64_t)node;
-        else if (node.isUInt64()) return (int)(uint64_t)node;
-        else if (node.isBool()) return (bool)node;
-        else
-            CV_Error(Error::StsUnsupportedFormat, "Type mismatch");
+        switch (node.type())
+        {
+            case PB_INT32: return (int32_t)node;
+            case PB_UINT32: return (int)(uint32_t)node;
+            case PB_INT64: return (int)(int64_t)node;
+            case PB_UINT64: return (int)(uint64_t)node;
+            case PB_BOOL: return (bool)node;
+            default:
+                CV_Error(Error::StsUnsupportedFormat, "Type mismatch");
+        }
         return 0;
     }
 
     static float toReal(const ProtobufNode& node)
     {
-        if (node.isFloat()) return (float)node;
-        else if (node.isDouble()) return (float)(double)node;
-        else
-            CV_Error(Error::StsUnsupportedFormat, "Type mismatch");
+        switch (node.type())
+        {
+            case PB_FLOAT: return (float)node;
+            case PB_DOUBLE: return (float)(double)node;
+            default:
+                CV_Error(Error::StsUnsupportedFormat, "Type mismatch");
+        }
         return 0;
     }
 

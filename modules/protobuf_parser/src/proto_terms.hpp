@@ -17,133 +17,58 @@
 
 namespace cv { namespace pb {
 
-// Read <numBytes> bytes into <dst> from <s> binary stream.
-// Returns number of bytes that were exactly read.
-int readBinary(std::istream& s, void* dst, int numBytes);
-
-// Read varint and extract tag and wire type. Wire type is one of the followings:
-// | Wire type |                   Term types |
-// |-----------|------------------------------|
-// |         0 | int32, int64, uint32, uint64 |
-// |           | sint32, sint64, bool, enum   |
-// |         1 | fixed64, sfixed64, double    |
-// |         2 | string, bytes,               |
-// |           | embedded messages,           |
-// |           | packed repeated fields       |
-// |         5 | fixed32, sfixed32, float     |
-// See https://developers.google.com/protocol-buffers/docs/encoding#structure
-// Wire types 3 and 4 are deprecated.
-void parseKey(std::istream& s, int* tag, int* wireType);
-
-Ptr<ProtobufField> createField(const std::string& type,
-                               const std::string& defaultValue = "",
-                               bool packed = false);
-
-template <typename T>
-T valueFromString(const std::string& str);
-
-// Explicit function for strings. It's used because of initialization of return
-// value inside function. Only numeric types support initialization by zero int.
-template <>
-std::string valueFromString(const std::string& str);
-
-template <typename T>
-struct ProtoValue : public ProtobufField
-{
-    explicit ProtoValue(const std::string& defaultValue = "")
-    {
-        value = valueFromString<T>(defaultValue);
-    }
-
-    explicit ProtoValue(std::istream& s) { read(s); }
-
-    virtual void read(std::istream& s)
-    {
-        if (typeid(T) == typeid(int32_t) || typeid(T) == typeid(uint32_t) ||
-            typeid(T) == typeid(int64_t) || typeid(T) == typeid(uint64_t))
-        {
-            readVarint(s, &value, sizeof(T));
-        }
-        else if (typeid(T) == typeid(float) || typeid(T) == typeid(double) ||
-                 typeid(T) == typeid(bool))
-        {
-            readBinary(s, &value, sizeof(T));
-        }
-        else if (typeid(T) == typeid(std::string))
-        {
-            ProtoValue<int32_t> len(s);
-            if (len.value < 0)
-                CV_Error(Error::StsParseError, "Negative string length");
-            std::string* str = reinterpret_cast<std::string*>(&value);
-            if (len.value != 0)
-            {
-                str->resize(len.value);
-                CV_Assert(readBinary(s, &str->operator[](0), len.value));
-            }
-            else
-                str->clear();
-        }
-        else
-            CV_Error(Error::StsNotImplemented, "Unsupported protobuf value type");
-    }
-
-    virtual void read(std::vector<std::string>::iterator& tokenIt)
-    {
-        value = valueFromString<T>(*tokenIt);
-        ++tokenIt;
-    }
-
-    virtual Ptr<ProtobufField> clone() const
-    {
-        return Ptr<ProtobufField>(new ProtoValue<T>());
-    }
-
-    T value;
-private:
-    static int readVarint(std::istream& s, void* dst, int maxNumBytes)
-    {
-        CV_Assert(0 <= maxNumBytes && maxNumBytes <= 8);
-        uint64_t res = 0;
-        char byte;
-        bool read_next_byte = (readBinary(s, &byte, 1) != 0);
-        int bytesRead = 0;
-        // Read bytes until the first bit of byte is zero.
-        // Maximal length - 9 bytes (7 bits from every byte , 63 bits totally).
-        for (; bytesRead < 9 && read_next_byte; ++bytesRead)
-        {
-            read_next_byte = (byte & 0x80) != 0;
-            uint64_t mask = (byte & 0x7f);
-            res |= mask << bytesRead * 7;  // All bits except the last one.
-
-            if (read_next_byte && !readBinary(s, &byte, 1))
-            {
-                CV_Error(Error::StsParseError, "Unexpected end of file");
-            }
-        }
-        if (read_next_byte)
-        {
-            bytesRead += 1;
-            read_next_byte = (byte & 0x80) != 0;
-            CV_Assert(!read_next_byte);
-        }
-        memcpy(dst, &res, maxNumBytes);
-        return bytesRead;
-    }
-};
-
-typedef ProtoValue<int32_t> ProtoInt32;
-typedef ProtoValue<uint32_t> ProtoUInt32;
-typedef ProtoValue<int64_t> ProtoInt64;
-typedef ProtoValue<uint64_t> ProtoUInt64;
-typedef ProtoValue<float> ProtoFloat;
-typedef ProtoValue<double> ProtoDouble;
-typedef ProtoValue<bool> ProtoBool;
-typedef ProtoValue<std::string> ProtoString;
-
-class ProtoEnum : public ProtoString
+class ProtoValue : public ProtobufField
 {
 public:
-    ProtoEnum(bool packed);
+    ProtoValue(int type, bool packed, const std::string& defaultValue = "");
+
+    ProtoValue(const std::string& type, bool packed, const std::string& defaultValue = "");
+
+    ProtoValue(int type, std::istream& s);
+
+    virtual void read(std::istream& s);
+
+    virtual void read(std::vector<std::string>::iterator& tokenIt);
+
+    virtual Ptr<ProtobufField> clone() const;
+
+    virtual void clear();
+
+    virtual bool empty() const;
+
+    virtual int size() const;
+
+    void copyTo(void* dst, int numBytes) const;
+
+    Ptr<ProtobufField> operator[](int idx) const;
+
+    int32_t getInt32(int idx = 0) const;
+    uint32_t getUInt32(int idx = 0) const;
+    int64_t getInt64(int idx = 0) const;
+    uint64_t getUInt64(int idx = 0) const;
+    float getFloat(int idx = 0) const;
+    double getDouble(int idx = 0) const;
+    bool getBool(int idx = 0) const;
+    std::string getString(int idx = 0) const;
+
+protected:
+    bool packed;
+    std::string defaultValueStr;
+
+private:
+    template <typename T>
+    T get(int idx = 0) const;
+
+    // Raw read data.
+    std::vector<char> data;
+    // Offsets to values at data.
+    std::vector<int> offsets;
+};
+
+class ProtoEnum : public ProtoValue
+{
+public:
+    ProtoEnum(bool packed, const std::string& defaultValue);
 
     void addValue(const std::string& name, int number);
 
@@ -152,27 +77,41 @@ public:
     virtual Ptr<ProtobufField> clone() const;
 
 private:
-    bool packed;
     std::map<int, std::string> enumValues;
 };
 
-class ProtoPack : public ProtobufField
+// Structure that represents protobuf's message.
+class ProtoMessage : public ProtobufField
 {
 public:
-    template <typename T>
-    static Ptr<ProtobufField> create();
+    ProtoMessage();
 
-    virtual void read(std::istream& s) = 0;
+    void addField(const Ptr<ProtobufField>& field, const std::string& name, int tag);
 
-    virtual Ptr<ProtobufField> clone() const = 0;
+    void addField(const std::string& type, const std::string& name, int tag);
 
-    virtual Ptr<ProtobufField> operator[](int idx) const = 0;
+    virtual void read(std::istream& s);
 
-    virtual int size() const = 0;
+    virtual void read(std::vector<std::string>::iterator& tokenIt);
 
-    virtual void copyTo(int numBytes, void* dst) const = 0;
+    virtual Ptr<ProtobufField> clone() const;
 
-    virtual void read(std::vector<std::string>::iterator& tokenIt) = 0;
+    virtual void clear();
+
+    virtual bool empty() const;
+
+    ProtobufNode operator[](const std::string& name) const;
+
+    bool has(const std::string& name) const;
+
+    void remove(const std::string& name, int idx = 0);
+
+private:
+    // Map field names to data that was read. There are several copies of
+    // repeated fields of non primitive types.
+    std::map<std::string, ProtobufFields> fields;
+    // Map fields tags to their names.
+    std::map<int, std::string> nameByTag;
 };
 
 }  // namespace pb

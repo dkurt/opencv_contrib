@@ -17,6 +17,14 @@ namespace cv { namespace pb {
 //! @addtogroup protobuf_parser
 //! @{
 
+    //! Enumeration of protocol buffer fields types supported by parser.
+    enum ProtobufFieldType {
+      PB_INT32, PB_UINT32, PB_INT64, PB_UINT64,  // Varint
+      PB_FLOAT, PB_DOUBLE, PB_BOOL,              // Fixed length
+      PB_STRING,                                 // Variable length
+      PB_MESSAGE                                 // Variable length, complex types
+    };
+
     /**
      * @brief ProtobufField is an every protobuf entry with type, name and tag.
      *
@@ -26,6 +34,12 @@ namespace cv { namespace pb {
     class ProtobufField
     {
     public:
+        /**
+         * @brief Protobuf field contructor.
+         * @param[in] type Type of field. @see ProtobufFieldType
+         */
+        ProtobufField(int type);
+
         /**
          * @brief Interpter binary data from stream into field values.
          * @param[in] s Input binary stream.
@@ -50,9 +64,24 @@ namespace cv { namespace pb {
         virtual Ptr<ProtobufField> clone() const = 0;
 
         /**
+         * @brief Remove all read data but keep internal state to be ready read it again.
+         */
+        virtual void clear() = 0;
+
+        virtual bool empty() const = 0;
+
+        /**
+         * @brief Returns type of field
+         */
+        int type() const;
+
+        /**
          * @brief Virtual desctuctor.
          */
         virtual ~ProtobufField() {}
+
+    protected:
+        int _type;
     };
 
     //! Shortcut to vector of protobuf fields.
@@ -68,6 +97,8 @@ namespace cv { namespace pb {
          * @brief Construct node from a set of fields.
          */
         explicit ProtobufNode(const ProtobufFields& fields = ProtobufFields());
+
+        explicit ProtobufNode(const Ptr<ProtobufField>& field);
 
         /**
          * @brief Access to embedded node by name.
@@ -112,14 +143,7 @@ namespace cv { namespace pb {
         operator bool() const; //!< Explicit cast to retrieve value from node.
         operator std::string() const; //!< Explicit cast to retrieve value from node.
 
-        bool isInt32() const; //!< Check type of node.
-        bool isUInt32() const; //!< Check type of node.
-        bool isInt64() const; //!< Check type of node.
-        bool isUInt64() const; //!< Check type of node.
-        bool isFloat() const; //!< Check type of node.
-        bool isDouble() const; //!< Check type of node.
-        bool isBool() const; //!< Check type of node.
-        bool isString() const; //!< Check type of node.
+        int type() const;  //!< Get type of node.
 
         /**
          * @brief Copy certain number of bytes into pre-allocated memory.
@@ -154,16 +178,7 @@ namespace cv { namespace pb {
         void remove(const std::string& name, int idx = 0);
 
     private:
-        template <typename T>
-        T get() const;
-
-        template <typename T>
-        void set(const T& value);
-
-        template <typename T>
-        bool is() const;
-
-        ProtobufFields nodes;
+        ProtobufFields fields;
     };
 
     /**
